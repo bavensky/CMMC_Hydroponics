@@ -15,6 +15,10 @@
 #define rx 2                  
 #define tx 3  
 
+// Pump water pin 5
+#define pump 5
+int speedwater = 255;
+
 // Setup a DHT22 instance
 DHT22 myDHT22(DHT22_PIN);
 
@@ -36,7 +40,34 @@ char ph_data[20];
 byte received_from_sensor=0; 
 float ph=0;
 
+//  initial Variable
+int i = 0;
+int _year,  _month,  _day;
+int _hour,  _minute,  _second;
+
 // custom characters
+byte temp[8] = {
+  0b00000,
+  0b00100,
+  0b00100,
+  0b01110,
+  0b11111,
+  0b11111,
+  0b11111,
+  0b01110
+};
+
+byte humi[8] = {
+  0b00000,
+  0b00000,
+  0b00000,
+  0b00000,
+  0b00000,
+  0b00000,
+  0b00000,
+  0b01110
+};
+
 byte water[8] = {
   0b00000,
   0b00100,
@@ -48,7 +79,60 @@ byte water[8] = {
   0b01110
 };
 
-int i = 0;
+byte celsius[8] = {
+  0b01110,
+  0b10001,
+  0b10001,
+  0b01110,
+  0b00000,
+  0b00000,
+  0b00000,
+  0b00000
+};
+
+byte ph_emo[8] = {
+  0b00000,
+  0b01110,
+  0b01001,
+  0b01001,
+  0b01110,
+  0b01000,
+  0b01000,
+  0b01000
+};
+
+//byte water[8] = {
+//  0b00000,
+//  0b00100,
+//  0b00100,
+//  0b01110,
+//  0b11111,
+//  0b11111,
+//  0b11111,
+//  0b01110
+//};
+//
+//byte water[8] = {
+//  0b00000,
+//  0b00100,
+//  0b00100,
+//  0b01110,
+//  0b11111,
+//  0b11111,
+//  0b11111,
+//  0b01110
+//};
+//
+//byte water[8] = {
+//  0b00000,
+//  0b00100,
+//  0b00100,
+//  0b01110,
+//  0b11111,
+//  0b11111,
+//  0b11111,
+//  0b01110
+//};
 
 void setup(void)  {
   Serial.begin(9600);
@@ -64,7 +148,14 @@ void setup(void)  {
   pinMode(10, INPUT_PULLUP);
   pinMode(11, INPUT_PULLUP);
   
-  lcd.createChar(0, water);
+  lcd.createChar(0, celsius);
+  lcd.createChar(1, water);
+  lcd.createChar(2, ph_emo);
+//  lcd.createChar(3, water);
+//  lcd.createChar(4, water);
+//  lcd.createChar(5, water);
+//  lcd.createChar(6, water);
+//  lcd.createChar(7, water);
   
 //  rtc.adjust(DateTime(__DATE__, __TIME__));
 }
@@ -75,21 +166,69 @@ void loop(void)  {
   check_dht22();
   check_rtc();
   sensors.requestTemperatures(); 
+  display_lcd();
+  control_pump();
+  Serial.println(speedwater);
   
   
+}
+
+void control_pump()  {
+  
+  if(digitalRead(8) == 0)  {
+    speedwater += 5;
+  }
+  
+  if(digitalRead(9) == 0)  {
+    speedwater -= 5;
+  }
+  
+  if(speedwater <= 0)  {
+    speedwater = 0;
+  }
+  
+  if(speedwater >= 255)  {
+    speedwater = 255;
+  }
+  
+//  Serial.println(speedwater);
+  analogWrite(pump,  speedwater);
+}
+void display_lcd()  {
   lcd.home();
-  lcd.print("Hydropnics");
+  lcd.print(" Hydropnics Systems ");
+  
   lcd.setCursor(0, 1);
+  lcd.print(" ");
+  lcd.print(myDHT22.getTemperatureC());
   lcd.write(0);
-//  lcd.print(sensors.getTempCByIndex(0));
-//  lcd.setCursor(0, 2);
-//  lcd.print("Temperature = ");
-//  lcd.print(myDHT22.getTemperatureC());
-//  lcd.setCursor(0, 3);
-//  lcd.print("Humidity = ");
-//  lcd.print(myDHT22.getHumidity());
-//  lcd.print("  pH = ");
-//  lcd.print(ph);
+  lcd.print("C  ");
+  lcd.print(myDHT22.getHumidity());
+  lcd.print(" %RH  ");
+  
+  lcd.setCursor(0, 2);
+  lcd.print(" ");
+  lcd.write(1);
+  lcd.print(sensors.getTempCByIndex(0));
+  lcd.print("   ");
+  lcd.write(2);
+  lcd.print("H ");
+  lcd.print(ph);
+  lcd.print("    ");
+  
+  lcd.setCursor(0, 3);
+  lcd.print("   Time ");
+  if(_hour <= 10){  lcd.print("0");  }
+  lcd.print(_hour);
+  lcd.print(":");
+  if(_minute <= 10){  lcd.print("0");  }
+  lcd.print(_minute);
+  lcd.print(":");
+  if(_second <= 10){  lcd.print("0");  }
+  lcd.print(_second);
+  lcd.print("    ");
+
+
   
 //  Serial.print("  Button : ");
 //  Serial.print(digitalRead(8));
@@ -102,7 +241,6 @@ void loop(void)  {
 //  }
  
 }
-
 void check_dht22()  {
   DHT22_ERROR_t errorCode;
   errorCode = myDHT22.readData();
@@ -121,18 +259,24 @@ void check_ph()  {
 }
 
 void check_rtc()  {
-    DateTime now = rtc.now();
-    
-    Serial.print(now.year(), DEC);
-    Serial.print('/');
-    Serial.print(now.month(), DEC);
-    Serial.print('/');
-    Serial.print(now.day(), DEC);
-    Serial.print(' ');
-    Serial.print(now.hour(), DEC);
-    Serial.print(':');
-    Serial.print(now.minute(), DEC);
-    Serial.print(':');
-    Serial.print(now.second(), DEC);
-    Serial.println();
+  DateTime now = rtc.now();
+  _year  =  now.year();
+  _month  =  now.month();
+  _day  =  now.day();
+  _hour  =  now.hour();
+  _minute  =  now.minute();
+  _second  =  now.second();
+
+//    Serial.print(now.year(), DEC);
+//    Serial.print('/');
+//    Serial.print(now.month(), DEC);
+//    Serial.print('/');
+//    Serial.print(now.day(), DEC);
+//    Serial.print(' ');
+//    Serial.print(now.hour(), DEC);
+//    Serial.print(':');
+//    Serial.print(now.minute(), DEC);
+//    Serial.print(':');
+//    Serial.print(now.second(), DEC);
+//    Serial.println();
 }
